@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation Centre d'Appel - Immersive Ultra</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Inter:wght@400;700;900&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Empêche le scroll global */
+        }
+        
+        .digit-font {
+            font-family: 'Roboto Mono', monospace;
+            font-variant-numeric: tabular-nums;
+        }
+
+        @keyframes urgent-pulse {
+            0% { background-color: rgba(220, 38, 38, 0.2); transform: scale(1); }
+            50% { background-color: rgba(220, 38, 38, 0.6); transform: scale(1.05); }
+            100% { background-color: rgba(220, 38, 38, 0.2); transform: scale(1); }
+        }
+
+        .metric-critical {
+            animation: urgent-pulse 1s infinite ease-in-out;
+            border-color: #ef4444 !important;
+            color: #fca5a5 !important;
+        }
+
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* BANDEAU DÉFILANT (TICKER) - FIXE EN BAS */
+        .ticker-wrap {
+            position: fixed;
+            left: 0;
+            bottom: 0; /* Toujours collé en bas */
+            width: 100%;
+            overflow: hidden;
+            height: 3.5rem; /* Hauteur fixe */
+            background-color: rgba(0, 0, 0, 0.95);
+            border-top: 1px solid #4b5563; 
+            z-index: 50; /* Au-dessus du footer quand il se cache */
+            display: flex;
+            align-items: center;
+        }
+
+        .ticker-message-container {
+            position: absolute;
+            white-space: nowrap;
+            will-change: transform;
+        }
+
+        @keyframes scroll-message {
+            from { transform: translateX(100vw); }
+            to { transform: translateX(-100%); }
+        }
+
+        /* NOTIFICATIONS FLASH */
+        #flash-container {
+            position: fixed;
+            top: 6rem;
+            right: 1rem;
+            width: 28rem; 
+            z-index: 60;
+            pointer-events: none; 
+        }
+        
+        .flash-toast {
+            background: rgba(31, 41, 55, 0.95);
+            border-left: 6px solid #3b82f6; 
+            padding: 1.5rem; 
+            margin-bottom: 0.75rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            transform: translateX(120%);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(5px);
+        }
+        
+        .flash-toast.show {
+            transform: translateX(0);
+        }
+
+        .recording-badge {
+            animation: blink-record 2s infinite;
+        }
+        
+        @keyframes blink-record {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white h-screen flex flex-col relative" id="appBody">
+
+    <!-- En-tête -->
+    <header class="bg-gray-800/80 p-3 flex justify-between items-center border-b border-gray-700 h-[8vh] z-20 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 p-2 rounded-lg">
+                <i class="fa-solid fa-tower-broadcast text-xl text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold uppercase tracking-wider text-gray-200">Centre de Contrôle</h1>
+                <p class="text-[10px] text-gray-400">STATUS: <span id="systemStatus" class="text-green-400 font-bold">ACTIF</span></p>
+            </div>
+        </div>
+        
+        <!-- Indicateur Écoute Qualité -->
+        <div id="monitoringBadge" class="hidden flex items-center gap-2 bg-red-900/80 border border-red-500 px-4 py-2 rounded text-red-100 font-bold text-sm recording-badge uppercase tracking-wider shadow-[0_0_15px_rgba(239,68,68,0.5)]">
+            <i class="fa-solid fa-headset text-lg"></i> Écoute Qualité en cours
+        </div>
+
+        <div class="text-right flex items-center gap-4">
+            <button id="btnMute" onclick="toggleMute()" class="text-gray-400 hover:text-white border border-gray-600 rounded px-2 py-1 text-xs">
+                <i class="fa-solid fa-volume-high"></i> SON ON
+            </button>
+            <div>
+                <span class="block text-xs text-gray-400 uppercase">Heure Locale</span>
+                <span id="realClock" class="text-xl font-mono text-white font-bold">00:00</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Zone Notifications Flash -->
+    <div id="flash-container"></div>
+
+    <!-- Zone Principale -->
+    <!-- Ajout de padding-bottom (pb-40) pour que le contenu ne soit pas caché par le menu/bandeau -->
+    <main class="flex-grow flex flex-col p-4 gap-4 relative z-10 pb-40 overflow-y-auto" id="mainContainer">
+        
+        <!-- SECTION 1: Métriques -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 h-[30vh] shrink-0">
+            <!-- En Attente -->
+            <div id="cardQueue" class="glass-panel rounded-2xl flex flex-col items-center justify-center relative overflow-hidden shadow-xl border-t-4 border-transparent">
+                <h2 class="text-gray-400 uppercase text-lg font-bold tracking-widest mb-2">En Attente</h2>
+                <div class="text-7xl md:text-8xl font-black digit-font text-white z-10" id="queueVal">0</div>
+                <i class="fa-solid fa-users absolute -bottom-4 -right-4 text-9xl text-white/5 z-0"></i>
+                <div id="queueWarning" class="hidden absolute inset-0 border-4 border-red-500 animate-pulse rounded-2xl pointer-events-none"></div>
+            </div>
+
+            <!-- Niveau de Service -->
+            <div id="cardSLA" class="glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-green-500/50 bg-gray-800/40 relative overflow-hidden">
+                <h2 class="text-gray-400 uppercase text-sm font-bold tracking-widest mb-2">Niveau Service</h2>
+                <div class="text-6xl font-bold digit-font text-green-400 z-10" id="slaVal">100%</div>
+                <i class="fa-solid fa-chart-line absolute -bottom-2 -right-2 text-8xl text-white/5 z-0"></i>
+            </div>
+
+            <!-- Agents Dispo -->
+            <div class="glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-green-500/50 bg-gray-800/40">
+                <h2 class="text-gray-400 uppercase text-sm font-bold tracking-widest mb-2">Agents Dispo.</h2>
+                <div class="text-6xl font-bold digit-font text-green-400" id="agentsFreeVal">3</div>
+            </div>
+
+            <!-- Agents En Ligne -->
+            <div class="glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-blue-500/50 bg-gray-800/40">
+                <h2 class="text-gray-400 uppercase text-sm font-bold tracking-widest mb-2">En Ligne</h2>
+                <div class="text-6xl font-bold digit-font text-blue-400" id="agentsBusyVal">9</div>
+            </div>
+        </div>
+
+        <!-- SECTION 2: Timer Personnel -->
+        <div class="flex-grow glass-panel rounded-2xl flex flex-col items-center justify-center relative border-2 border-white/5 transition-all duration-500 shrink-0 min-h-[300px]" id="timerPanel">
+            
+            <div id="statusBadge" class="mb-4 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-widest bg-gray-700 text-gray-300">
+                En attente d'appel
+            </div>
+
+            <div id="timerDisplay" class="digit-font text-[12vw] leading-none font-bold drop-shadow-2xl select-none text-white">
+                00:00
+            </div>
+
+            <div class="mt-2 text-xl uppercase tracking-widest text-white/60 font-medium">
+                Objectif DMT: <span id="targetDisplay">05:00</span>
+            </div>
+
+            <div id="alertOverlay" class="absolute inset-0 bg-red-600/0 pointer-events-none transition-colors duration-500 rounded-2xl"></div>
+            <div id="alertMessage" class="absolute bottom-10 text-3xl md:text-5xl font-black uppercase text-red-100 hidden animate-bounce drop-shadow-lg">
+                DÉPASSEMENT CRITIQUE
+            </div>
+        </div>
+    </main>
+
+    <!-- BANDEAU DÉFILANT (Toujours en bas, Z-Index 50) -->
+    <div class="ticker-wrap" id="tickerWrap">
+        <!-- Messages injectés via JS -->
+    </div>
+
+    <!-- Panneau de Contrôle (Menu) -->
+    <!-- Positionné FIXE au-dessus du bandeau (bottom-14 = 3.5rem). Z-Index 40 (en dessous du ticker quand caché) -->
+    <footer class="bg-gray-800 border-t border-gray-700 p-4 transition-transform duration-300 z-40 shadow-2xl fixed bottom-14 w-full" id="controlPanel">
+        <div class="container mx-auto flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center gap-3 bg-gray-700/50 p-2 rounded-lg border border-gray-600">
+                <label class="text-xs text-gray-300 uppercase font-bold">Objectif</label>
+                <input type="number" id="inputMin" value="8" class="w-12 bg-gray-800 border border-gray-600 rounded text-center text-white focus:border-blue-500 outline-none">
+                <span class="text-gray-400">:</span>
+                <input type="number" id="inputSec" value="00" class="w-12 bg-gray-800 border border-gray-600 rounded text-center text-white focus:border-blue-500 outline-none">
+                <button onclick="setTarget()" class="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-xs uppercase font-bold transition">OK</button>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="startSimulation()" id="btnStart" class="bg-green-600 hover:bg-green-500 text-white px-10 py-3 rounded-xl font-bold text-xl shadow-lg flex items-center gap-2 transition transform active:scale-95 border-b-4 border-green-800">
+                    <i class="fa-solid fa-phone"></i> PRENDRE L'APPEL
+                </button>
+                <button onclick="stopSimulation()" id="btnStop" class="bg-gray-600 hover:bg-gray-500 text-white px-8 py-3 rounded-xl font-bold text-xl shadow-lg flex items-center gap-2 transition hidden border-b-4 border-gray-800">
+                    <i class="fa-solid fa-phone-slash"></i> RACCROCHER
+                </button>
+                <button onclick="resetSimulation()" class="text-gray-400 hover:text-white px-4 py-2 rounded-lg font-bold border border-gray-600 hover:border-gray-400 transition">
+                    RESET
+                </button>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleFullScreen()" class="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-lg transition" title="Plein Écran">
+                    <i class="fa-solid fa-expand"></i>
+                </button>
+                <button onclick="toggleControls()" class="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-lg transition" title="Masquer">
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bouton pour réafficher le menu (Positionné au-dessus du ticker) -->
+    <button onclick="toggleControls()" id="showControlsBtn" class="fixed bottom-16 left-1/2 transform -translate-x-1/2 bg-gray-800 text-gray-400 px-6 py-2 rounded-t-xl hidden hover:text-white hover:bg-gray-700 z-30 shadow-lg border-t border-gray-600">
+        <i class="fa-solid fa-chevron-up"></i> MENU
+    </button>
+
+    <script>
+        // --- Variables Globales ---
+        let timerInterval, simulationInterval, randomEventInterval;
+        let tickerTimeout; 
+        let elapsedSeconds = 0;
+        let targetSeconds = 480;
+        let isRunning = false;
+        
+        // Simulation Data
+        const TOTAL_AGENTS = 12;
+        let queueCount = 0;
+        let agentsBusy = 8;
+        let agentsFree = 4;
+        let serviceLevel = 100;
+        let currentTimerState = 'green';
+        
+        // Audio & Messages
+        let audioContext = null;
+        let isMuted = false;
+
+        // --- DOM Elements ---
+        const timerDisplay = document.getElementById('timerDisplay');
+        const timerPanel = document.getElementById('timerPanel');
+        const appBody = document.getElementById('appBody');
+        const alertOverlay = document.getElementById('alertOverlay');
+        const alertMsg = document.getElementById('alertMessage');
+        const statusBadge = document.getElementById('statusBadge');
+        const cardQueue = document.getElementById('cardQueue');
+        const cardSLA = document.getElementById('cardSLA'); 
+        const tickerWrap = document.getElementById('tickerWrap');
+        const elQueue = document.getElementById('queueVal');
+        const elSLA = document.getElementById('slaVal'); 
+        const elFree = document.getElementById('agentsFreeVal');
+        const elBusy = document.getElementById('agentsBusyVal');
+        const flashContainer = document.getElementById('flash-container');
+        const monitoringBadge = document.getElementById('monitoringBadge');
+
+        // --- Initialisation ---
+        window.onload = function() {
+            updateRealClock();
+            setInterval(updateRealClock, 1000);
+            updateMetricsUI();
+            setTarget();
+            startTickerLoop();
+        };
+
+        // --- AUDIO ---
+        function initAudio() {
+            if (!audioContext) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioContext = new AudioContext();
+            }
+            if (audioContext.state === 'suspended') audioContext.resume();
+        }
+
+        function playTone(freq, type, duration) {
+            if (isMuted || !audioContext) return;
+            const osc = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            osc.type = type; 
+            osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+            osc.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            osc.start();
+            osc.stop(audioContext.currentTime + duration);
+        }
+
+        function playQueuePing() { playTone(600, 'sine', 0.1); }
+        function playWarningBeep() { playTone(300, 'square', 0.3); setTimeout(() => playTone(300, 'square', 0.3), 400); }
+        function playAlarm() { playTone(800, 'sawtooth', 0.1); setTimeout(() => playTone(600, 'sawtooth', 0.1), 150); }
+        function playNotificationSound() { playTone(500, 'sine', 0.1); setTimeout(() => playTone(800, 'sine', 0.2), 100); }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            const btn = document.getElementById('btnMute');
+            if(isMuted) {
+                btn.innerHTML = '<i class="fa-solid fa-volume-xmark"></i> MUET';
+                btn.classList.add('text-red-400', 'border-red-400');
+            } else {
+                btn.innerHTML = '<i class="fa-solid fa-volume-high"></i> SON ON';
+                btn.classList.remove('text-red-400', 'border-red-400');
+            }
+        }
+
+        // --- BANDEAU INTELLIGENT ---
+        const genericMessages = [
+            "Rappel : Signature des feuilles de temps avant 17h",
+            "Le client est notre priorité absolue",
+            "Bonne journée à tous, on garde le sourire !",
+            "Menu cafétéria : Pâté chinois aujourd'hui",
+            "Formation disponible sur l'intranet",
+            "Rappel : Pas de cellulaires sur le plateau",
+            "Concours de vente en cours",
+            "Félicitations pour les résultats d'hier"
+        ];
+
+        const alertMessages = [
+            { text: "⚠️ ATTENTION : La file d'attente augmente !", condition: () => queueCount > 3 },
+            { text: "⚠️ SERVICE LEVEL CRITIQUE : Accélérez la cadence", condition: () => serviceLevel < 70 },
+            { text: "🚨 DÉBORDEMENT : TOUTES MAINS AU TÉLÉPHONE", condition: () => queueCount > 6 },
+            { text: "⚠️ Votre appel dépasse l'objectif - Concluez rapidement", condition: () => currentTimerState === 'red' },
+            { text: "⚠️ Attention DMT : Restez concis", condition: () => currentTimerState === 'yellow' },
+            { text: "🚨 Zéro tolérance sur l'auxiliaire non justifié", condition: () => queueCount > 4 }
+        ];
+
+        function startTickerLoop() {
+            if(tickerTimeout) clearTimeout(tickerTimeout);
+            tickerWrap.innerHTML = '';
+
+            let msgText = "";
+            let msgType = "normal";
+
+            const activeAlerts = alertMessages.filter(m => m.condition());
+            
+            if (activeAlerts.length > 0) {
+                const alert = activeAlerts[Math.floor(Math.random() * activeAlerts.length)];
+                msgText = alert.text;
+                msgType = "alert";
+            } else {
+                if (Math.random() < 0.6) {
+                    msgText = genericMessages[Math.floor(Math.random() * genericMessages.length)];
+                    msgText = `<i class="fa-solid fa-info-circle mx-2 opacity-50"></i> ${msgText}`;
+                } else {
+                    tickerTimeout = setTimeout(startTickerLoop, 3000 + Math.random() * 4000);
+                    return;
+                }
+            }
+
+            const el = document.createElement('div');
+            el.className = "ticker-message-container text-xl font-bold uppercase tracking-wider px-4";
+            
+            if (msgType === "alert") {
+                el.classList.add("text-red-500", "font-black");
+                if(msgText.includes("⚠️")) el.classList.add("text-yellow-400");
+                if(msgText.includes("🚨")) el.classList.add("text-red-500");
+            } else {
+                el.classList.add("text-gray-300");
+            }
+            
+            el.innerHTML = msgText;
+            tickerWrap.appendChild(el);
+
+            const screenWidth = window.innerWidth;
+            const textWidth = el.offsetWidth;
+            const totalDistance = screenWidth + textWidth;
+            const duration = totalDistance / 100; 
+
+            el.style.animation = `scroll-message ${duration}s linear forwards`;
+
+            el.addEventListener('animationend', () => {
+                el.remove();
+                const pause = 2000 + Math.random() * 6000;
+                tickerTimeout = setTimeout(startTickerLoop, pause);
+            });
+        }
+
+        // --- FLASH & MONITORING ---
+        const flashMessages = [
+            { text: "Panne CRM signalée - Lenteur possible", type: "warning" },
+            { text: "Nouvelle promo 'Fibre' active - Voir script", type: "info" },
+            { text: "Visite client VIP sur le plateau à 14h", type: "info" },
+            { text: "Rappel : Procédure #404 modifiée", type: "warning" },
+            { text: "Bravo ! Vente record par Marc-André", type: "success" },
+            { text: "Camion de rue (Tacos) devant l'immeuble ce midi", type: "info" },
+            { text: "Merci de remettre les casques sur les socles", type: "info" },
+            { text: "Rappel : Parking zone B en travaux demain", type: "warning" },
+            { text: "Client mystère signalé sur les lignes", type: "warning" },
+            { text: "Système de paie inaccessible pour maintenance", type: "warning" },
+            { text: "Objectif vente journalier atteint à 80%", type: "success" },
+            { text: "Attention : Verglas annoncé pour le retour", type: "info" }
+        ];
+
+        function showFlashMessage(msgObj) {
+            const div = document.createElement('div');
+            let borderColor = 'border-blue-500';
+            let icon = 'fa-info-circle';
+            let textColor = 'text-blue-400';
+
+            if(msgObj.type === 'warning') {
+                borderColor = 'border-yellow-500';
+                icon = 'fa-triangle-exclamation';
+                textColor = 'text-yellow-400';
+            }
+            if(msgObj.type === 'success') {
+                borderColor = 'border-green-500';
+                icon = 'fa-trophy';
+                textColor = 'text-green-400';
+            }
+
+            div.className = `flash-toast text-base text-white ${borderColor}`;
+            div.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <i class="fa-solid ${icon} ${textColor} mt-1 text-2xl"></i>
+                    <div>
+                        <h4 class="font-bold uppercase text-sm text-gray-400 mb-1">Flash Info</h4>
+                        <p class="font-bold text-lg leading-tight">${msgObj.text}</p>
+                    </div>
+                </div>
+            `;
+
+            flashContainer.appendChild(div);
+            if(!isMuted) playNotificationSound();
+
+            requestAnimationFrame(() => { div.classList.add('show'); });
+            setTimeout(() => {
+                div.classList.remove('show');
+                setTimeout(() => div.remove(), 600);
+            }, 6000); 
+        }
+
+        function toggleMonitoring() {
+            const isActive = !monitoringBadge.classList.contains('hidden');
+            if (!isActive) {
+                if(Math.random() < 0.05) {
+                    monitoringBadge.classList.remove('hidden');
+                    const duration = 60000 + Math.random() * 60000;
+                    setTimeout(() => monitoringBadge.classList.add('hidden'), duration);
+                }
+            }
+        }
+
+        function triggerRandomEvents() {
+            if(Math.random() < 0.15) { 
+                const msg = flashMessages[Math.floor(Math.random() * flashMessages.length)];
+                showFlashMessage(msg);
+            }
+            toggleMonitoring();
+        }
+
+        // --- SIMULATION ---
+        function startSimulation() {
+            if (isRunning) return;
+            initAudio();
+            isRunning = true;
+            document.getElementById('btnStart').classList.add('hidden');
+            document.getElementById('btnStop').classList.remove('hidden');
+            statusBadge.innerText = "En Communication";
+            statusBadge.className = "mb-4 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-widest bg-blue-600 text-white";
+
+            timerInterval = setInterval(() => {
+                elapsedSeconds++;
+                updateTimerDisplay();
+                checkTimeThresholds();
+            }, 1000);
+
+            simulationInterval = setInterval(simulateCallCenterLife, 1000);
+            randomEventInterval = setInterval(triggerRandomEvents, 5000);
+            checkTimeThresholds();
+        }
+
+        function stopSimulation() {
+            isRunning = false;
+            clearInterval(timerInterval);
+            clearInterval(simulationInterval);
+            clearInterval(randomEventInterval);
+            
+            document.getElementById('btnStart').classList.remove('hidden');
+            document.getElementById('btnStop').classList.add('hidden');
+            statusBadge.innerText = "Appel Terminé - Wrap Up";
+            statusBadge.className = "mb-4 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-widest bg-gray-600 text-white";
+            timerPanel.classList.remove('animate-pulse');
+            monitoringBadge.classList.add('hidden'); 
+        }
+
+        function resetSimulation() {
+            stopSimulation();
+            elapsedSeconds = 0;
+            queueCount = 0;
+            agentsBusy = 8;
+            agentsFree = 4;
+            currentTimerState = 'green';
+            updateTimerDisplay();
+            resetVisuals();
+            updateMetricsUI();
+        }
+
+        function simulateCallCenterLife() {
+            let agentReleaseChance = 0.05;
+            if (agentsBusy > 0 && Math.random() < agentReleaseChance) { 
+                agentsBusy--;
+                agentsFree++;
+            }
+            if (queueCount > 0 && agentsFree > 0) {
+                queueCount--;
+                agentsFree--;
+                agentsBusy++;
+            }
+
+            let ratio = (targetSeconds > 0) ? elapsedSeconds / targetSeconds : 0;
+            let newCallChance = 0.0;
+            
+            if (ratio < 0.6) {
+                newCallChance = 0.02;
+                if (agentsFree > 5) newCallChance = 0.10;
+            } else if (ratio < 0.8) {
+                newCallChance = 0.08;
+            } else if (ratio < 1.0) {
+                newCallChance = 0.15;
+            } else {
+                let overtime = ratio - 1.0; 
+                newCallChance = 0.20 + (overtime * 0.05);
+            }
+
+            if (Math.random() < newCallChance) {
+                let incoming = 1;
+                if (ratio > 1.2 && Math.random() < 0.15) incoming = 2;
+                
+                for(let i=0; i<incoming; i++) {
+                    if (agentsFree > 0) {
+                        agentsFree--;
+                        agentsBusy++;
+                    } else {
+                        queueCount++;
+                        if(queueCount % 2 === 0) playQueuePing();
+                    }
+                }
+            }
+            updateMetricsUI();
+        }
+
+        function updateMetricsUI() {
+            elQueue.innerText = queueCount;
+            elFree.innerText = agentsFree;
+            elBusy.innerText = agentsBusy;
+
+            let calculatedSLA = 100 - (queueCount * 1.25);
+            if (calculatedSLA < 0) calculatedSLA = 0;
+            calculatedSLA = Math.round(calculatedSLA);
+            serviceLevel = calculatedSLA;
+            
+            elSLA.innerText = calculatedSLA + "%";
+
+            if (calculatedSLA >= 80) {
+                elSLA.className = "text-6xl font-bold digit-font text-green-400 z-10";
+                cardSLA.className = "glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-green-500/50 bg-gray-800/40 relative overflow-hidden";
+            } else if (calculatedSLA >= 60) {
+                elSLA.className = "text-6xl font-bold digit-font text-yellow-400 z-10";
+                cardSLA.className = "glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-yellow-500/50 bg-gray-800/40 relative overflow-hidden";
+            } else {
+                elSLA.className = "text-6xl font-bold digit-font text-red-500 animate-pulse z-10";
+                cardSLA.className = "glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-red-500/50 bg-gray-800/40 relative overflow-hidden";
+            }
+
+            if (queueCount >= 6) {
+                cardQueue.classList.add('metric-critical');
+                document.getElementById('queueWarning').classList.remove('hidden');
+            } else {
+                cardQueue.classList.remove('metric-critical');
+                document.getElementById('queueWarning').classList.add('hidden');
+            }
+        }
+
+        function checkTimeThresholds() {
+            const timeLeft = targetSeconds - elapsedSeconds;
+            
+            appBody.classList.remove('bg-gray-900', 'bg-green-900', 'bg-yellow-900', 'bg-red-900');
+            timerPanel.classList.remove('border-green-500', 'border-yellow-500', 'border-red-500');
+            alertOverlay.className = "absolute inset-0 bg-red-600/0 pointer-events-none transition-colors duration-500 rounded-2xl";
+
+            if (elapsedSeconds >= targetSeconds) {
+                if (currentTimerState !== 'red') {
+                    playAlarm();
+                    currentTimerState = 'red';
+                }
+                appBody.classList.add('bg-red-900');
+                timerPanel.classList.add('border-red-500', 'bg-red-900/50');
+                alertOverlay.classList.replace('bg-red-600/0', 'bg-red-600/20');
+                statusBadge.innerText = "DÉPASSEMENT";
+                statusBadge.className = "mb-4 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-widest bg-red-600 text-white animate-pulse";
+                alertMsg.classList.remove('hidden');
+                timerDisplay.classList.add('text-red-200');
+            } else if (timeLeft <= 90 && timeLeft > 0) {
+                if (currentTimerState !== 'yellow') {
+                    playWarningBeep();
+                    currentTimerState = 'yellow';
+                }
+                appBody.classList.add('bg-yellow-900');
+                timerPanel.classList.add('border-yellow-500', 'bg-yellow-900/30');
+                statusBadge.innerText = "Attention - Wrap Up";
+                statusBadge.className = "mb-4 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-widest bg-yellow-500 text-black";
+                alertMsg.classList.add('hidden');
+                timerDisplay.classList.remove('text-red-200');
+            } else {
+                currentTimerState = 'green';
+                appBody.classList.add('bg-gray-900');
+                timerPanel.classList.add('border-green-500/30');
+                alertMsg.classList.add('hidden');
+                timerDisplay.classList.remove('text-red-200');
+            }
+        }
+
+        function setTarget() {
+            const min = parseInt(document.getElementById('inputMin').value) || 0;
+            const sec = parseInt(document.getElementById('inputSec').value) || 0;
+            targetSeconds = (min * 60) + sec;
+            document.getElementById('targetDisplay').innerText = 
+                `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+            if(elapsedSeconds > 0) checkTimeThresholds();
+        }
+
+        function updateTimerDisplay() {
+            const min = Math.floor(elapsedSeconds / 60);
+            const sec = elapsedSeconds % 60;
+            timerDisplay.innerText = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+
+        function resetVisuals() {
+            appBody.className = "bg-gray-900 text-white h-screen flex flex-col justify-between transition-colors duration-1000 relative"; // Suppression de controls-visible par défaut si nécessaire, géré par toggle
+            timerPanel.className = "flex-grow glass-panel rounded-2xl flex flex-col items-center justify-center relative border-2 border-white/5 transition-all duration-500 shrink-0 min-h-[300px]";
+            statusBadge.innerText = "Prêt";
+            statusBadge.className = "mb-4 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-widest bg-gray-700 text-gray-300";
+            alertMsg.classList.add('hidden');
+            timerDisplay.classList.remove('text-red-200');
+            cardQueue.classList.remove('metric-critical');
+            document.getElementById('queueWarning').classList.add('hidden');
+            monitoringBadge.classList.add('hidden');
+        }
+
+        function updateRealClock() {
+            const now = new Date();
+            document.getElementById('realClock').innerText = 
+                now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+
+        function toggleControls() {
+            const footer = document.getElementById('controlPanel');
+            const showBtn = document.getElementById('showControlsBtn');
+            
+            if (footer.classList.contains('translate-y-[110%]')) {
+                // MONTRER
+                footer.classList.remove('translate-y-[110%]');
+                showBtn.classList.add('hidden');
+            } else {
+                // CACHER
+                footer.classList.add('translate-y-[110%]');
+                showBtn.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
