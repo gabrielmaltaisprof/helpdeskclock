@@ -11,7 +11,7 @@
 
         body {
             font-family: 'Inter', sans-serif;
-            overflow: hidden; /* Empêche le scroll global */
+            overflow: hidden; 
         }
         
         .digit-font {
@@ -37,19 +37,17 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        /* BANDEAU DÉFILANT (TICKER) - FIXE EN BAS */
+        /* BANDEAU DÉFILANT (TICKER) */
         .ticker-wrap {
-            position: fixed;
-            left: 0;
-            bottom: 0; /* Toujours collé en bas */
             width: 100%;
             overflow: hidden;
-            height: 3.5rem; /* Hauteur fixe */
+            height: 3.5rem;
             background-color: rgba(0, 0, 0, 0.95);
             border-top: 1px solid #4b5563; 
-            z-index: 50; /* Au-dessus du footer quand il se cache */
+            z-index: 50; 
             display: flex;
             align-items: center;
+            flex-shrink: 0; 
         }
 
         .ticker-message-container {
@@ -97,9 +95,25 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.3; }
         }
+
+        /* GESTION DU MENU RETRACTABLE AVEC TRANSITION */
+        #controlPanel {
+            transition: max-height 0.5s ease-in-out, opacity 0.3s ease-in-out, padding 0.5s ease;
+            max-height: 200px; 
+            opacity: 1;
+            overflow: hidden;
+        }
+
+        #controlPanel.collapsed {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            border: none;
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-white h-screen flex flex-col relative" id="appBody">
+<body class="bg-gray-900 text-white h-screen flex flex-col justify-between transition-colors duration-1000 relative" id="appBody">
 
     <!-- En-tête -->
     <header class="bg-gray-800/80 p-3 flex justify-between items-center border-b border-gray-700 h-[8vh] z-20 shrink-0">
@@ -133,11 +147,10 @@
     <div id="flash-container"></div>
 
     <!-- Zone Principale -->
-    <!-- Ajout de padding-bottom (pb-40) pour que le contenu ne soit pas caché par le menu/bandeau -->
-    <main class="flex-grow flex flex-col p-4 gap-4 relative z-10 pb-40 overflow-y-auto" id="mainContainer">
+    <main class="flex-grow flex flex-col p-4 gap-4 relative z-10 overflow-hidden" id="mainContainer">
         
         <!-- SECTION 1: Métriques -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 h-[30vh] shrink-0">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 h-[25vh] shrink-0">
             <!-- En Attente -->
             <div id="cardQueue" class="glass-panel rounded-2xl flex flex-col items-center justify-center relative overflow-hidden shadow-xl border-t-4 border-transparent">
                 <h2 class="text-gray-400 uppercase text-lg font-bold tracking-widest mb-2">En Attente</h2>
@@ -167,7 +180,7 @@
         </div>
 
         <!-- SECTION 2: Timer Personnel -->
-        <div class="flex-grow glass-panel rounded-2xl flex flex-col items-center justify-center relative border-2 border-white/5 transition-all duration-500 shrink-0 min-h-[300px]" id="timerPanel">
+        <div class="flex-grow glass-panel rounded-2xl flex flex-col items-center justify-center relative border-2 border-white/5 transition-all duration-500 min-h-0" id="timerPanel">
             
             <div id="statusBadge" class="mb-4 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-widest bg-gray-700 text-gray-300">
                 En attente d'appel
@@ -188,14 +201,13 @@
         </div>
     </main>
 
-    <!-- BANDEAU DÉFILANT (Toujours en bas, Z-Index 50) -->
-    <div class="ticker-wrap" id="tickerWrap">
-        <!-- Messages injectés via JS -->
-    </div>
+    <!-- Bouton pour réafficher le menu -->
+    <button onclick="toggleControls()" id="showControlsBtn" class="fixed bottom-16 left-1/2 transform -translate-x-1/2 bg-gray-800 text-gray-400 px-6 py-2 rounded-t-xl hidden hover:text-white hover:bg-gray-700 z-50 shadow-lg border-t border-gray-600">
+        <i class="fa-solid fa-chevron-up"></i> MENU
+    </button>
 
-    <!-- Panneau de Contrôle (Menu) -->
-    <!-- Positionné FIXE au-dessus du bandeau (bottom-14 = 3.5rem). Z-Index 40 (en dessous du ticker quand caché) -->
-    <footer class="bg-gray-800 border-t border-gray-700 p-4 transition-transform duration-300 z-40 shadow-2xl fixed bottom-14 w-full" id="controlPanel">
+    <!-- Panneau de Contrôle -->
+    <footer class="bg-gray-800 border-t border-gray-700 p-4 shadow-2xl w-full shrink-0 z-40" id="controlPanel">
         <div class="container mx-auto flex flex-wrap justify-between items-center gap-4">
             <div class="flex items-center gap-3 bg-gray-700/50 p-2 rounded-lg border border-gray-600">
                 <label class="text-xs text-gray-300 uppercase font-bold">Objectif</label>
@@ -226,10 +238,10 @@
         </div>
     </footer>
 
-    <!-- Bouton pour réafficher le menu (Positionné au-dessus du ticker) -->
-    <button onclick="toggleControls()" id="showControlsBtn" class="fixed bottom-16 left-1/2 transform -translate-x-1/2 bg-gray-800 text-gray-400 px-6 py-2 rounded-t-xl hidden hover:text-white hover:bg-gray-700 z-30 shadow-lg border-t border-gray-600">
-        <i class="fa-solid fa-chevron-up"></i> MENU
-    </button>
+    <!-- BANDEAU DÉFILANT -->
+    <div class="ticker-wrap" id="tickerWrap">
+        <!-- Messages injectés via JS -->
+    </div>
 
     <script>
         // --- Variables Globales ---
@@ -317,25 +329,32 @@
             }
         }
 
-        // --- BANDEAU INTELLIGENT ---
+        // --- BANDEAU INTELLIGENT (MESSAGES QUÉBÉCOIS SATIRIQUES) ---
         const genericMessages = [
-            "Rappel : Signature des feuilles de temps avant 17h",
-            "Le client est notre priorité absolue",
-            "Bonne journée à tous, on garde le sourire !",
-            "Menu cafétéria : Pâté chinois aujourd'hui",
-            "Formation disponible sur l'intranet",
-            "Rappel : Pas de cellulaires sur le plateau",
-            "Concours de vente en cours",
-            "Félicitations pour les résultats d'hier"
+            "Motivation : Un client heureux, c'est un client qui raccroche vite !",
+            "Rappel : Le 'Pâté Chinois' de la cafétéria est à 50% de rabais (y'en reste pu gros)",
+            "Lâchez pas la patate la gang ! On vise le bonus 'pizza froide' à Noël !",
+            "Note de service : Interdit de pleurer au bureau, allez aux toilettes SVP",
+            "Concours : Une carte Tim de 5$ pour celui qui prend le plus d'appels (Tirage en 2027)",
+            "On garde le sourire dans la voix, même si le client vous engueule !",
+            "Rappel : Les pauses pipi sont chronométrées, soyez efficaces",
+            "Félicitations à Kevin pour son 3e avertissement, on lâche pas !",
+            "La direction vous aime (surtout quand vous êtes connectés)",
+            "Propreté : Ramassez vos miettes de toast dans le clavier, c'est dégueulasse",
+            "Formation 'Gérer sa colère en silence' disponible sur l'intranet",
+            "Rappel : Le code vestimentaire s'applique aussi aux bas bruns",
+            "N'oubliez pas : Le client a toujours raison (même quand y'est dans le champ)"
         ];
 
         const alertMessages = [
-            { text: "⚠️ ATTENTION : La file d'attente augmente !", condition: () => queueCount > 3 },
-            { text: "⚠️ SERVICE LEVEL CRITIQUE : Accélérez la cadence", condition: () => serviceLevel < 70 },
-            { text: "🚨 DÉBORDEMENT : TOUTES MAINS AU TÉLÉPHONE", condition: () => queueCount > 6 },
-            { text: "⚠️ Votre appel dépasse l'objectif - Concluez rapidement", condition: () => currentTimerState === 'red' },
-            { text: "⚠️ Attention DMT : Restez concis", condition: () => currentTimerState === 'yellow' },
-            { text: "🚨 Zéro tolérance sur l'auxiliaire non justifié", condition: () => queueCount > 4 }
+            { text: "⚠️ AWEILLE ! La file monte, on niaise pas avec la puck !", condition: () => queueCount > 3 },
+            { text: "⚠️ SLA EN CHUTE LIBRE ! Ça va fesser dans le dash !", condition: () => serviceLevel < 70 },
+            { text: "🚨 DÉBORDEMENT TOTAL : LÂCHEZ VOS CAFÉS PIS RÉPONDEZ !", condition: () => queueCount > 6 },
+            { text: "⚠️ Ça jase trop ! Concluez ça au plus sacrant !", condition: () => currentTimerState === 'red' },
+            { text: "⚠️ Oubliez la météo, parlez business ! (DMT en hausse)", condition: () => currentTimerState === 'yellow' },
+            { text: "🚨 C'est qui l'clown en 'Auxiliaire' ? Embarquez sur la ligne !", condition: () => queueCount > 4 },
+            { text: "🚨 PANIQUE GÉNÉRALE : Le boss s'en vient sur le plancher !", condition: () => queueCount > 8 },
+            { text: "⚠️ Grouillez-vous ! Y'a du monde à messe !", condition: () => queueCount > 5 }
         ];
 
         function startTickerLoop() {
@@ -389,20 +408,20 @@
             });
         }
 
-        // --- FLASH & MONITORING ---
+        // --- FLASH & MONITORING (TEXTES AJUSTÉS) ---
         const flashMessages = [
-            { text: "Panne CRM signalée - Lenteur possible", type: "warning" },
-            { text: "Nouvelle promo 'Fibre' active - Voir script", type: "info" },
-            { text: "Visite client VIP sur le plateau à 14h", type: "info" },
-            { text: "Rappel : Procédure #404 modifiée", type: "warning" },
-            { text: "Bravo ! Vente record par Marc-André", type: "success" },
-            { text: "Camion de rue (Tacos) devant l'immeuble ce midi", type: "info" },
-            { text: "Merci de remettre les casques sur les socles", type: "info" },
-            { text: "Rappel : Parking zone B en travaux demain", type: "warning" },
-            { text: "Client mystère signalé sur les lignes", type: "warning" },
-            { text: "Système de paie inaccessible pour maintenance", type: "warning" },
-            { text: "Objectif vente journalier atteint à 80%", type: "success" },
-            { text: "Attention : Verglas annoncé pour le retour", type: "info" }
+            { text: "Le CRM rame encore... faites semblant que vous cherchez", type: "warning" },
+            { text: "Promo 'Fibre' annulée (on a oublié de vous le dire)", type: "info" },
+            { text: "Visite du VP : Cachez vos tasses pas propres", type: "info" },
+            { text: "Rappel : Code 404 change encore (voir courriel ignoré)", type: "warning" },
+            { text: "Bravo Ginette ! Vente record d'un modem 56k !", type: "success" },
+            { text: "Camion de poutine en bas (mais vous avez pas le temps)", type: "info" },
+            { text: "SVP arrêtez de voler les chaises roulantes des autres", type: "info" },
+            { text: "Rappel : Le parking est plein (comme d'hab)", type: "warning" },
+            { text: "Client mystère en ligne ! Soyez fins pour une fois", type: "warning" },
+            { text: "Système de paie buggé... on verra ça lundi", type: "warning" },
+            { text: "Objectif atteint à 12% ! On lâche pas !", type: "success" },
+            { text: "Tempête de neige : Vous restez jusqu'à minuit", type: "info" }
         ];
 
         function showFlashMessage(msgObj) {
@@ -640,8 +659,8 @@
         }
 
         function resetVisuals() {
-            appBody.className = "bg-gray-900 text-white h-screen flex flex-col justify-between transition-colors duration-1000 relative"; // Suppression de controls-visible par défaut si nécessaire, géré par toggle
-            timerPanel.className = "flex-grow glass-panel rounded-2xl flex flex-col items-center justify-center relative border-2 border-white/5 transition-all duration-500 shrink-0 min-h-[300px]";
+            appBody.className = "bg-gray-900 text-white h-screen flex flex-col justify-between transition-colors duration-1000 relative";
+            timerPanel.className = "flex-grow glass-panel rounded-2xl flex flex-col items-center justify-center relative border-2 border-white/5 transition-all duration-500 min-h-0";
             statusBadge.innerText = "Prêt";
             statusBadge.className = "mb-4 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-widest bg-gray-700 text-gray-300";
             alertMsg.classList.add('hidden');
@@ -669,13 +688,13 @@
             const footer = document.getElementById('controlPanel');
             const showBtn = document.getElementById('showControlsBtn');
             
-            if (footer.classList.contains('translate-y-[110%]')) {
+            if (footer.classList.contains('collapsed')) {
                 // MONTRER
-                footer.classList.remove('translate-y-[110%]');
+                footer.classList.remove('collapsed');
                 showBtn.classList.add('hidden');
             } else {
                 // CACHER
-                footer.classList.add('translate-y-[110%]');
+                footer.classList.add('collapsed');
                 showBtn.classList.remove('hidden');
             }
         }
