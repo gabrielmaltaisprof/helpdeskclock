@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Simulation Centre d'Appel - Immersive Ultra</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -12,6 +12,7 @@
         body {
             font-family: 'Inter', sans-serif;
             overflow: hidden; 
+            max-width: 100vw; /* Sécurité mobile */
         }
         
         .digit-font {
@@ -48,17 +49,19 @@
             display: flex;
             align-items: center;
             flex-shrink: 0; 
+            position: relative; /* CRUCIAL pour contenir l'enfant absolute */
         }
 
         .ticker-message-container {
             position: absolute;
             white-space: nowrap;
             will-change: transform;
+            left: 0; /* Point de départ relatif au parent */
         }
 
         @keyframes scroll-message {
-            from { transform: translateX(100vw); }
-            to { transform: translateX(-100%); }
+            from { transform: translateX(100%); } /* Utiliser % du parent, pas vw */
+            to { transform: translateX(-100%); } /* Sortir complètement à gauche */
         }
 
         /* NOTIFICATIONS FLASH */
@@ -66,7 +69,8 @@
             position: fixed;
             top: 6rem;
             right: 1rem;
-            width: 28rem; 
+            width: 90%; /* Adapté mobile */
+            max-width: 28rem;
             z-index: 60;
             pointer-events: none; 
         }
@@ -99,7 +103,7 @@
         /* GESTION DU MENU RETRACTABLE AVEC TRANSITION */
         #controlPanel {
             transition: max-height 0.5s ease-in-out, opacity 0.3s ease-in-out, padding 0.5s ease;
-            max-height: 200px; 
+            max-height: 300px; /* Augmenté pour mobile */
             opacity: 1;
             overflow: hidden;
         }
@@ -113,7 +117,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-900 text-white h-screen flex flex-col justify-between transition-colors duration-1000 relative" id="appBody">
+<body class="bg-gray-900 text-white h-[100dvh] flex flex-col justify-between transition-colors duration-1000 relative" id="appBody">
 
     <!-- En-tête -->
     <header class="bg-gray-800/80 p-3 flex justify-between items-center border-b border-gray-700 h-[8vh] z-20 shrink-0">
@@ -122,14 +126,15 @@
                 <i class="fa-solid fa-tower-broadcast text-xl text-white"></i>
             </div>
             <div>
-                <h1 class="text-lg font-bold uppercase tracking-wider text-gray-200">Centre de Contrôle</h1>
+                <h1 class="text-lg font-bold uppercase tracking-wider text-gray-200 hidden md:block">Centre de Contrôle</h1>
+                <h1 class="text-lg font-bold uppercase tracking-wider text-gray-200 md:hidden">Simu-Appel</h1>
                 <p class="text-[10px] text-gray-400">STATUS: <span id="systemStatus" class="text-green-400 font-bold">ACTIF</span></p>
             </div>
         </div>
         
         <!-- Indicateur Écoute Qualité -->
-        <div id="monitoringBadge" class="hidden flex items-center gap-2 bg-red-900/80 border border-red-500 px-4 py-2 rounded text-red-100 font-bold text-sm recording-badge uppercase tracking-wider shadow-[0_0_15px_rgba(239,68,68,0.5)]">
-            <i class="fa-solid fa-headset text-lg"></i> Écoute Qualité en cours
+        <div id="monitoringBadge" class="hidden flex items-center gap-2 bg-red-900/80 border border-red-500 px-4 py-2 rounded text-red-100 font-bold text-sm recording-badge uppercase tracking-wider shadow-[0_0_15px_rgba(239,68,68,0.5)] absolute left-1/2 transform -translate-x-1/2 top-16 md:static md:transform-none md:top-auto z-50">
+            <i class="fa-solid fa-headset text-lg"></i> <span class="hidden md:inline">Écoute Qualité en cours</span><span class="md:hidden">ÉCOUTE</span>
         </div>
 
         <div class="text-right flex items-center gap-4">
@@ -137,7 +142,7 @@
                 <i class="fa-solid fa-volume-high"></i> SON ON
             </button>
             <div>
-                <span class="block text-xs text-gray-400 uppercase">Heure Locale</span>
+                <span class="block text-xs text-gray-400 uppercase">Heure</span>
                 <span id="realClock" class="text-xl font-mono text-white font-bold">00:00</span>
             </div>
         </div>
@@ -150,52 +155,52 @@
     <main class="flex-grow flex flex-col p-4 gap-4 relative z-10 overflow-hidden" id="mainContainer">
         
         <!-- SECTION 1: Métriques -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 h-[25vh] shrink-0">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 h-[auto] md:h-[25vh] shrink-0">
             <!-- En Attente -->
-            <div id="cardQueue" class="glass-panel rounded-2xl flex flex-col items-center justify-center relative overflow-hidden shadow-xl border-t-4 border-transparent">
-                <h2 class="text-gray-400 uppercase text-lg font-bold tracking-widest mb-2">En Attente</h2>
-                <div class="text-7xl md:text-8xl font-black digit-font text-white z-10" id="queueVal">0</div>
-                <i class="fa-solid fa-users absolute -bottom-4 -right-4 text-9xl text-white/5 z-0"></i>
+            <div id="cardQueue" class="glass-panel rounded-2xl flex flex-col items-center justify-center relative overflow-hidden shadow-xl border-t-4 border-transparent p-4">
+                <h2 class="text-gray-400 uppercase text-xs md:text-lg font-bold tracking-widest mb-1">En Attente</h2>
+                <div class="text-5xl md:text-8xl font-black digit-font text-white z-10" id="queueVal">0</div>
+                <i class="fa-solid fa-users absolute -bottom-4 -right-4 text-6xl md:text-9xl text-white/5 z-0"></i>
                 <div id="queueWarning" class="hidden absolute inset-0 border-4 border-red-500 animate-pulse rounded-2xl pointer-events-none"></div>
             </div>
 
             <!-- Niveau de Service -->
-            <div id="cardSLA" class="glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-green-500/50 bg-gray-800/40 relative overflow-hidden">
-                <h2 class="text-gray-400 uppercase text-sm font-bold tracking-widest mb-2">Niveau Service</h2>
-                <div class="text-6xl font-bold digit-font text-green-400 z-10" id="slaVal">100%</div>
-                <i class="fa-solid fa-chart-line absolute -bottom-2 -right-2 text-8xl text-white/5 z-0"></i>
+            <div id="cardSLA" class="glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-green-500/50 bg-gray-800/40 relative overflow-hidden p-4">
+                <h2 class="text-gray-400 uppercase text-xs md:text-sm font-bold tracking-widest mb-1">Niveau Svc.</h2>
+                <div class="text-4xl md:text-6xl font-bold digit-font text-green-400 z-10" id="slaVal">100%</div>
+                <i class="fa-solid fa-chart-line absolute -bottom-2 -right-2 text-6xl md:text-8xl text-white/5 z-0"></i>
             </div>
 
             <!-- Agents Dispo -->
-            <div class="glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-green-500/50 bg-gray-800/40">
-                <h2 class="text-gray-400 uppercase text-sm font-bold tracking-widest mb-2">Agents Dispo.</h2>
-                <div class="text-6xl font-bold digit-font text-green-400" id="agentsFreeVal">3</div>
+            <div class="glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-green-500/50 bg-gray-800/40 p-4">
+                <h2 class="text-gray-400 uppercase text-xs md:text-sm font-bold tracking-widest mb-1">Agents Dispo.</h2>
+                <div class="text-4xl md:text-6xl font-bold digit-font text-green-400" id="agentsFreeVal">3</div>
             </div>
 
             <!-- Agents En Ligne -->
-            <div class="glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-blue-500/50 bg-gray-800/40">
-                <h2 class="text-gray-400 uppercase text-sm font-bold tracking-widest mb-2">En Ligne</h2>
-                <div class="text-6xl font-bold digit-font text-blue-400" id="agentsBusyVal">9</div>
+            <div class="glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-blue-500/50 bg-gray-800/40 p-4">
+                <h2 class="text-gray-400 uppercase text-xs md:text-sm font-bold tracking-widest mb-1">En Ligne</h2>
+                <div class="text-4xl md:text-6xl font-bold digit-font text-blue-400" id="agentsBusyVal">9</div>
             </div>
         </div>
 
         <!-- SECTION 2: Timer Personnel -->
         <div class="flex-grow glass-panel rounded-2xl flex flex-col items-center justify-center relative border-2 border-white/5 transition-all duration-500 min-h-0" id="timerPanel">
             
-            <div id="statusBadge" class="mb-4 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-widest bg-gray-700 text-gray-300">
+            <div id="statusBadge" class="mb-4 px-4 py-1 rounded-full text-xs md:text-sm font-bold uppercase tracking-widest bg-gray-700 text-gray-300">
                 En attente d'appel
             </div>
 
-            <div id="timerDisplay" class="digit-font text-[12vw] leading-none font-bold drop-shadow-2xl select-none text-white">
+            <div id="timerDisplay" class="digit-font text-[18vw] md:text-[12vw] leading-none font-bold drop-shadow-2xl select-none text-white">
                 00:00
             </div>
 
-            <div class="mt-2 text-xl uppercase tracking-widest text-white/60 font-medium">
+            <div class="mt-2 text-sm md:text-xl uppercase tracking-widest text-white/60 font-medium">
                 Objectif DMT: <span id="targetDisplay">05:00</span>
             </div>
 
             <div id="alertOverlay" class="absolute inset-0 bg-red-600/0 pointer-events-none transition-colors duration-500 rounded-2xl"></div>
-            <div id="alertMessage" class="absolute bottom-10 text-3xl md:text-5xl font-black uppercase text-red-100 hidden animate-bounce drop-shadow-lg">
+            <div id="alertMessage" class="absolute bottom-10 text-xl md:text-5xl font-black uppercase text-red-100 hidden animate-bounce drop-shadow-lg text-center px-4">
                 DÉPASSEMENT CRITIQUE
             </div>
         </div>
@@ -208,7 +213,7 @@
 
     <!-- Panneau de Contrôle -->
     <footer class="bg-gray-800 border-t border-gray-700 p-4 shadow-2xl w-full shrink-0 z-40" id="controlPanel">
-        <div class="container mx-auto flex flex-wrap justify-between items-center gap-4">
+        <div class="container mx-auto flex flex-col md:flex-row flex-wrap justify-between items-center gap-4">
             <div class="flex items-center gap-3 bg-gray-700/50 p-2 rounded-lg border border-gray-600">
                 <label class="text-xs text-gray-300 uppercase font-bold">Objectif</label>
                 <input type="number" id="inputMin" value="8" class="w-12 bg-gray-800 border border-gray-600 rounded text-center text-white focus:border-blue-500 outline-none">
@@ -216,11 +221,11 @@
                 <input type="number" id="inputSec" value="00" class="w-12 bg-gray-800 border border-gray-600 rounded text-center text-white focus:border-blue-500 outline-none">
                 <button onclick="setTarget()" class="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-xs uppercase font-bold transition">OK</button>
             </div>
-            <div class="flex gap-4">
-                <button onclick="startSimulation()" id="btnStart" class="bg-green-600 hover:bg-green-500 text-white px-10 py-3 rounded-xl font-bold text-xl shadow-lg flex items-center gap-2 transition transform active:scale-95 border-b-4 border-green-800">
-                    <i class="fa-solid fa-phone"></i> PRENDRE L'APPEL
+            <div class="flex gap-2 w-full md:w-auto justify-center">
+                <button onclick="startSimulation()" id="btnStart" class="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-xl font-bold text-lg shadow-lg flex items-center gap-2 transition transform active:scale-95 border-b-4 border-green-800 flex-grow md:flex-grow-0 justify-center">
+                    <i class="fa-solid fa-phone"></i> <span class="md:hidden">RÉPONDRE</span><span class="hidden md:inline">PRENDRE L'APPEL</span>
                 </button>
-                <button onclick="stopSimulation()" id="btnStop" class="bg-gray-600 hover:bg-gray-500 text-white px-8 py-3 rounded-xl font-bold text-xl shadow-lg flex items-center gap-2 transition hidden border-b-4 border-gray-800">
+                <button onclick="stopSimulation()" id="btnStop" class="bg-gray-600 hover:bg-gray-500 text-white px-6 py-3 rounded-xl font-bold text-lg shadow-lg flex items-center gap-2 transition hidden border-b-4 border-gray-800 flex-grow md:flex-grow-0 justify-center">
                     <i class="fa-solid fa-phone-slash"></i> RACCROCHER
                 </button>
                 <button onclick="resetSimulation()" class="text-gray-400 hover:text-white px-4 py-2 rounded-lg font-bold border border-gray-600 hover:border-gray-400 transition">
@@ -394,9 +399,10 @@
             el.innerHTML = msgText;
             tickerWrap.appendChild(el);
 
-            const screenWidth = window.innerWidth;
+            // Calculer la durée en fonction de la largeur de l'écran parent
+            const wrapWidth = tickerWrap.offsetWidth;
             const textWidth = el.offsetWidth;
-            const totalDistance = screenWidth + textWidth;
+            const totalDistance = wrapWidth + textWidth;
             const duration = totalDistance / 100; 
 
             el.style.animation = `scroll-message ${duration}s linear forwards`;
@@ -586,13 +592,13 @@
 
             if (calculatedSLA >= 80) {
                 elSLA.className = "text-6xl font-bold digit-font text-green-400 z-10";
-                cardSLA.className = "glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-green-500/50 bg-gray-800/40 relative overflow-hidden";
+                cardSLA.className = "glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-green-500/50 bg-gray-800/40 relative overflow-hidden p-4";
             } else if (calculatedSLA >= 60) {
                 elSLA.className = "text-6xl font-bold digit-font text-yellow-400 z-10";
-                cardSLA.className = "glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-yellow-500/50 bg-gray-800/40 relative overflow-hidden";
+                cardSLA.className = "glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-yellow-500/50 bg-gray-800/40 relative overflow-hidden p-4";
             } else {
                 elSLA.className = "text-6xl font-bold digit-font text-red-500 animate-pulse z-10";
-                cardSLA.className = "glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-red-500/50 bg-gray-800/40 relative overflow-hidden";
+                cardSLA.className = "glass-panel rounded-2xl flex flex-col items-center justify-center border-t-4 border-red-500/50 bg-gray-800/40 relative overflow-hidden p-4";
             }
 
             if (queueCount >= 6) {
@@ -659,7 +665,7 @@
         }
 
         function resetVisuals() {
-            appBody.className = "bg-gray-900 text-white h-screen flex flex-col justify-between transition-colors duration-1000 relative";
+            appBody.className = "bg-gray-900 text-white h-[100dvh] flex flex-col justify-between transition-colors duration-1000 relative";
             timerPanel.className = "flex-grow glass-panel rounded-2xl flex flex-col items-center justify-center relative border-2 border-white/5 transition-all duration-500 min-h-0";
             statusBadge.innerText = "Prêt";
             statusBadge.className = "mb-4 px-4 py-1 rounded-full text-sm font-bold uppercase tracking-widest bg-gray-700 text-gray-300";
